@@ -1,3 +1,8 @@
+// Инициализация Supabase
+const supabaseUrl = "https://zycrvaqqtufgqnbqunvr.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5Y3J2YXFxdHVmZ3FuYnF1bnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMTAwOTUsImV4cCI6MjA5Mjg4NjA5NX0.XoxEFdwRb224hHY1TpXUsIDnhpX7xOPHJ6Ukif7BzbY";
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
 function renderPageState(targetId) {
   const pages = document.querySelectorAll(".page");
   const buttons = document.querySelectorAll(".nav-btn");
@@ -10,6 +15,10 @@ function renderPageState(targetId) {
     // Инлайн-стиль гарантирует, что одновременно видна только одна страница.
     if (isActive) {
       page.style.display = page.classList.contains("page--stack") ? "grid" : "block";
+      
+      if (page.id === "leaderboard") {
+          renderLeaderboard();
+      }
     } else {
       page.style.display = "none";
     }
@@ -39,30 +48,116 @@ function setActivePage(targetId) {
   window.pendingPageTarget = null;
 }
 
-function initNewsSlider() {
+async function renderLeaderboard() {
+  const container = document.getElementById("leaderboard-list");
+  if (!container) return;
+  container.innerHTML = "<div style='padding: 20px; text-align: center; color: #ff5500;'>Загрузка Leaderboard...</div>";
+
+  try {
+    // Получаем реальные аккаунты из Supabase
+    const { data: accounts, error } = await supabaseClient
+      .from('accounts')
+      .select('username, avatar, elo, matches, wins, badge')
+      .order('elo', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    container.innerHTML = "";
+
+    accounts.forEach((player, index) => {
+      const isCurrentUser = window.currentAuthUser && window.currentAuthUser.username === player.username;
+      
+      const avatarSrc = player.avatar || "stocks/photo_1.jpg";
+      const winrate = player.matches > 0 ? Math.round((player.wins / player.matches) * 100) : 0;
+      const badgeHtml = (() => {
+        if (!player.badge) return "";
+        if (player.badge === 'verified') {
+          return '<span class="badge-pill badge-pill--verified" title="Верифицированный"><img src="img/Verified.png" alt="Verified"></span>';
+        }
+        if (player.badge === 'celebrity') {
+          return '<span class="badge-pill badge-pill--celebrity" title="Знаменитость"><img src="img/Celebrity.png" alt="Celebrity"></span>';
+        }
+        if (player.badge === 'admin') {
+          return '<span class="badge-pill badge-pill--admin" title="Админ FACEIT"><img src="img/admin.png" alt="Admin"></span>';
+        }
+        return "";
+      })();
+      
+      const rank = index + 1;
+      let rankClass = "";
+      if (rank === 1) rankClass = "rank-gold";
+      else if (rank === 2) rankClass = "rank-silver";
+      else if (rank === 3) rankClass = "rank-bronze";
+
+      const item = document.createElement("div");
+      item.className = `leaderboard-item ${rankClass} ${isCurrentUser ? "leaderboard-item--current-user" : ""}`;
+
+      item.innerHTML = `
+        <div class="lead-col lead-col-rank">
+          <span class="rank-badge">${rank}</span>
+        </div>
+        <div class="lead-col lead-col-player">
+          <img src="${avatarSrc}" alt="Avatar" class="lead-player-avatar" onerror="this.src='stocks/photo_1.jpg'">
+          <div class="lead-player-name">
+            ${player.username}
+            ${badgeHtml}
+            ${isCurrentUser ? '<span class="lead-badge-you">ВЫ</span>' : ""}
+          </div>
+        </div>
+        <div class="lead-col lead-col-matches">${player.matches || 0}</div>
+        <div class="lead-col lead-col-elo">${player.elo || 0}</div>
+      `;
+      container.appendChild(item);
+    });
+  } catch (err) {
+    console.error("Ошибка загрузки данных из Supabase:", err);
+    container.innerHTML = "<div style='padding: 20px; text-align: center; color: #ff3333;'>Ошибка загрузки Leaderboard. Проверьте подключение.</div>";
+  }
+}
+
+async function initNewsSlider() {
   const trackEl = document.getElementById("news-track");
   if (!trackEl) return;
 
   const prevBtn = document.querySelector('[data-news-arrow="prev"]');
   const nextBtn = document.querySelector('[data-news-arrow="next"]');
 
-  const newsItems = [
-    {
-      image: "https://picsum.photos/seed/so2faceit/800/450",
-      headline: "Старт платформы SO2 FACEIT",
-      text: "Запускаем мобильный матчмейкинг по Standoff 2. Следи за обновлениями и готовься к первой очереди.",
-    },
-    {
-      image: "https://picsum.photos/seed/standoff2/800/450",
-      headline: "Новости теперь листаются влево",
-      text: "Добавили автоперелистывание каждые 7 секунд и стрелки для ручного просмотра.",
-    },
-    {
-      image: "",
-      headline: "Telegram канал",
-      text: "Все анонсы и изменения публикуем в Telegram. Иконка — в правом верхнем углу.",
-    },
-  ];
+  let newsItems = [];
+  try {
+    const { data, error } = await supabaseClient
+      .from('news')
+      .select('title,text,image,pinned,created_at')
+      .order('pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    newsItems = data || [];
+  } catch (err) {
+    console.error('Ошибка загрузки новостей:', err);
+    newsItems = [];
+  }
+
+  if (!newsItems.length) {
+    newsItems = [
+      {
+        image: "https://picsum.photos/seed/so2faceit/800/450",
+        title: "Старт платформы SO2 FACEIT",
+        text: "Запускаем мобильный матчмейкинг по Standoff 2. Следи за обновлениями и готовься к первой очереди.",
+      },
+      {
+        image: "https://picsum.photos/seed/standoff2/800/450",
+        title: "Новости теперь листаются влево",
+        text: "Добавили автоперелистывание каждые 7 секунд и стрелки для ручного просмотра.",
+      },
+      {
+        image: "",
+        title: "Telegram канал",
+        text: "Все анонсы и изменения публикуем в Telegram. Иконка — в правом верхнем углу.",
+      },
+    ];
+  }
 
   trackEl.innerHTML = newsItems
     .map((item) => {
@@ -74,8 +169,8 @@ function initNewsSlider() {
         <article class="news-slide">
           ${img}
           <div class="news-slide__body">
-            <h3 class="news-slide__headline">${item.headline}</h3>
-            <p class="news-slide__text">${item.text}</p>
+            <h3 class="news-slide__headline">${item.title || item.headline}</h3>
+            <p class="news-slide__text">${item.text || ''}</p>
           </div>
         </article>
       `;
@@ -202,52 +297,107 @@ function initAuth() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   };
 
-  const loadUser = () => {
-    const state = readState();
-    state.currentUser = null;
-    writeState(state);
+  const loadUser = async () => {
+    try {
+      const userStr = localStorage.getItem(STORAGE_KEY + '_user');
+      if (userStr) {
+        let parsed = JSON.parse(userStr);
+        if (parsed && parsed.username) {
+          const fresh = await getAccountByUsername(parsed.username);
+          window.currentAuthUser = fresh || parsed;
+        } else {
+          window.currentAuthUser = parsed;
+        }
+        updateUI();
+        return;
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки текущего пользователя:', error);
+    }
+
     window.currentAuthUser = null;
     updateUI();
   };
 
   const saveData = () => {
-    const state = readState();
-    state.currentUser = window.currentAuthUser;
-    writeState(state);
+    localStorage.setItem(STORAGE_KEY + '_user', JSON.stringify(window.currentAuthUser));
   };
 
-  const getAccountByUsername = (username) => {
-    const { accounts } = readState();
-    return accounts.find((acc) => acc.username === username);
+  const getAccountByUsername = async (username) => {
+    const { data, error } = await supabaseClient
+      .from('accounts')
+      .select('*')
+      .eq('username', username)
+      .maybeSingle(); // Используем maybeSingle вместо single, чтобы избежать 406 ошибки (PGRST116), если аккаунт не найден
+    
+    if (error) {
+      console.error(error);
+      return null;
+    }
+    return data;
   };
 
-  const createAccount = (username, password) => {
-    const state = readState();
-
+  const createAccount = async (username, password) => {
     const matchHistory = generateMatchHistory(1200, 10);
     const totals = getTotalsFromHistory(matchHistory);
     const randomAvatarIndex = Math.floor(Math.random() * 7) + 1; // stocks/photo_1.jpg to photo_7.jpg
 
-    const newAccount = {
+    const newAccountData = {
       username,
       password,
       avatar: `stocks/photo_${randomAvatarIndex}.jpg`,
-      level: 1,
       elo: totals.currentElo,
       matches: matchHistory.length,
       wins: totals.wins,
-      losses: totals.losses,
       kills: totals.kills,
       deaths: totals.deaths,
+      headshots: Math.round(totals.kills * (totals.headshotRate / 100))
+    };
+
+    const { data, error } = await supabaseClient
+      .from('accounts')
+      .insert([newAccountData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Ошибка при создании аккаунта:", error);
+      throw error;
+    }
+
+    const accountForClient = {
+      ...data,
+      level: 1,
+      losses: totals.losses,
       headshotRate: totals.headshotRate,
       avgKills: totals.avgKills,
       matchHistory,
-      createdAt: Date.now(),
     };
 
-    state.accounts.push(newAccount);
-    writeState(state);
-    return newAccount;
+    return accountForClient;
+  };
+
+  const updateAccountProfile = async (changes) => {
+    if (!window.currentAuthUser || !window.currentAuthUser.username) return null;
+
+    const { data, error } = await supabaseClient
+      .from('accounts')
+      .update(changes)
+      .eq('username', window.currentAuthUser.username)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('Ошибка обновления профиля:', error);
+      return null;
+    }
+
+    window.currentAuthUser = {
+      ...window.currentAuthUser,
+      ...data,
+    };
+    saveData();
+    return window.currentAuthUser;
   };
 
   const generateMatchHistory = (startElo, count) => {
@@ -284,6 +434,7 @@ function initAuth() {
 
     if (!safeHistory.length) {
       return {
+        matches: 0,
         wins: 0,
         losses: 0,
         kills: 0,
@@ -313,6 +464,7 @@ function initAuth() {
     const currentElo = Number(safeHistory[safeHistory.length - 1].eloAfter) || 1200;
 
     return {
+      matches: safeHistory.length,
       wins,
       losses,
       kills,
@@ -327,28 +479,43 @@ function initAuth() {
     if (!user) return null;
 
     const profile = { ...user };
-    
-    // Поддержка старых аккаунтов: если нет аватарки, задаем случайную
     if (!profile.avatar) {
       profile.avatar = `stocks/photo_${Math.floor(Math.random() * 7) + 1}.jpg`;
     }
 
+    profile.matches = Number(profile.matches) || 0;
+    profile.wins = Number(profile.wins) || 0;
+    profile.losses = Number(profile.losses || (profile.matches - profile.wins)) || 0;
+    profile.kills = Number(profile.kills) || 0;
+    profile.deaths = Number(profile.deaths) || 0;
+    profile.headshots = Number(profile.headshots) || 0;
+    profile.headshotRate = typeof profile.headshotRate === 'number'
+      ? profile.headshotRate
+      : profile.headshots && profile.kills
+        ? Math.round((profile.headshots / profile.kills) * 100)
+        : 0;
+    profile.avgKills = typeof profile.avgKills === 'number'
+      ? profile.avgKills
+      : profile.matches > 0
+        ? Number((profile.kills / profile.matches).toFixed(1))
+        : 0;
+
     if (!Array.isArray(profile.matchHistory) || profile.matchHistory.length < 10) {
       const seedElo = Number(profile.elo) || 1200;
-      profile.matchHistory = generateMatchHistory(seedElo - 20, 10);
+      profile.matchHistory = generateMatchHistory(seedElo, 10);
     } else {
       profile.matchHistory = profile.matchHistory.slice(-10);
     }
 
     const totals = getTotalsFromHistory(profile.matchHistory);
-    profile.matches = profile.matchHistory.length;
-    profile.wins = totals.wins;
-    profile.losses = totals.losses;
-    profile.kills = totals.kills;
-    profile.deaths = totals.deaths;
-    profile.avgKills = totals.avgKills;
-    profile.headshotRate = totals.headshotRate;
-    profile.elo = totals.currentElo;
+    profile.matches = Number(profile.matches) || totals.matches;
+    profile.wins = Number(profile.wins) || totals.wins;
+    profile.losses = Number(profile.losses) || totals.losses;
+    profile.kills = Number(profile.kills) || totals.kills;
+    profile.deaths = Number(profile.deaths) || totals.deaths;
+    profile.avgKills = Number(profile.avgKills) || totals.avgKills;
+    profile.headshotRate = Number(profile.headshotRate) || totals.headshotRate;
+    profile.elo = Number(profile.elo) || totals.currentElo;
 
     return profile;
   };
@@ -618,7 +785,16 @@ function initAuth() {
       const kd = deaths > 0 ? kills / deaths : kills;
       const winrate = matches > 0 ? (wins / matches) * 100 : 0;
 
-      profileName.textContent = window.currentAuthUser.username;
+      const badge = window.currentAuthUser.badge || null;
+      let badgeHtml = '';
+      if (badge === 'verified') {
+        badgeHtml = '<span class="profile-badge profile-badge--verified" title="Верифицированный"><img src="img/Verified.png" alt="Verified"></span>';
+      } else if (badge === 'celebrity') {
+        badgeHtml = '<span class="profile-badge profile-badge--celebrity" title="Знаменитость"><img src="img/Celebrity.png" alt="Celebrity"></span>';
+      } else if (badge === 'admin') {
+        badgeHtml = '<span class="profile-badge profile-badge--admin" title="Админ FACEIT"><img src="img/admin.png" alt="Admin"></span>';
+      }
+      profileName.innerHTML = `${window.currentAuthUser.username} ${badgeHtml}`;
       profileStatus.textContent = "Онлайн";
       if (profileAvatar) profileAvatar.src = window.currentAuthUser.avatar;
       
@@ -642,6 +818,9 @@ function initAuth() {
 
       if (editBgBtn) editBgBtn.hidden = false;
       if (editAvatarBtn) editAvatarBtn.hidden = false;
+
+      const homeUserElo = document.getElementById("home-user-elo");
+      if (homeUserElo) homeUserElo.textContent = window.currentAuthUser.elo || 1200;
       
       if (profileBg) {
         if (window.currentAuthUser.headerBg) {
@@ -653,6 +832,10 @@ function initAuth() {
     } else {
       profileName.textContent = "Гость";
       profileStatus.textContent = "Не авторизован";
+      
+      const homeUserElo = document.getElementById("home-user-elo");
+      if (homeUserElo) homeUserElo.textContent = "N/A";
+      
       if (profileAvatar) profileAvatar.src = "https://api.dicebear.com/7.x/avataaars/svg?seed=Player";
       if (profileLevelIcon) profileLevelIcon.src = "level/1.png";
       if (profileLevel) profileLevel.hidden = true;
@@ -707,7 +890,7 @@ function initAuth() {
   closeModals();
 
   // Регистрация
-  registerForm.addEventListener("submit", (e) => {
+  registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const username = registerUsernameInput.value.trim();
     const password = registerPasswordInput.value;
@@ -728,23 +911,30 @@ function initAuth() {
       return;
     }
 
-    if (getAccountByUsername(username)) {
-      alert("Такой никнейм уже зарегистрирован!");
-      return;
-    }
+    try {
+      const existingAcc = await getAccountByUsername(username);
+      if (existingAcc) {
+        alert("Такой никнейм уже зарегистрирован!");
+        return;
+      }
 
-    window.currentAuthUser = createAccount(username, password);
-    updateUI();
-    closeModals();
+      window.currentAuthUser = await createAccount(username, password);
+      saveData();
+      updateUI();
+      closeModals();
 
-    // Переходим на сохранённую страницу, если была
-    if (window.pendingPageTarget) {
-      setActivePage(window.pendingPageTarget);
+      // Переходим на сохранённую страницу, если была
+      if (window.pendingPageTarget) {
+        setActivePage(window.pendingPageTarget);
+      }
+    } catch (err) {
+      alert("Ошибка при регистрации, проверьте подключение!");
+      console.error(err);
     }
   });
 
   // Вход
-  loginForm.addEventListener("submit", (e) => {
+  loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const username = loginUsernameInput.value.trim();
     const password = loginPasswordInput.value;
@@ -754,25 +944,30 @@ function initAuth() {
       return;
     }
 
-    const account = getAccountByUsername(username);
-    if (!account) {
-      alert("Аккаунт не найден!");
-      return;
-    }
+    try {
+      const account = await getAccountByUsername(username);
+      if (!account) {
+        alert("Аккаунт не найден!");
+        return;
+      }
 
-    if (account.password !== password) {
-      alert("Неверный пароль!");
-      return;
-    }
+      if (account.password !== password) {
+        alert("Неверный пароль!");
+        return;
+      }
 
-    window.currentAuthUser = account;
-    saveData();
-    updateUI();
-    closeModals();
+      window.currentAuthUser = account;
+      saveData();
+      updateUI();
+      closeModals();
 
-    // Переходим на сохранённую страницу, если была
-    if (window.pendingPageTarget) {
-      setActivePage(window.pendingPageTarget);
+      // Переходим на сохранённую страницу, если была
+      if (window.pendingPageTarget) {
+        setActivePage(window.pendingPageTarget);
+      }
+    } catch (err) {
+      alert("Ошибка при входе!");
+      console.error(err);
     }
   });
 
@@ -841,7 +1036,7 @@ function initAuth() {
   if (editBgBtn && bgUpload) {
     editBgBtn.addEventListener("click", () => bgUpload.click());
     bgUpload.addEventListener("change", (e) => {
-      processImageUpload(e.target.files[0], (base64) => {
+      processImageUpload(e.target.files[0], async (base64) => {
         if (window.currentAuthUser) {
           window.currentAuthUser.headerBg = base64;
           saveData();
@@ -854,12 +1049,12 @@ function initAuth() {
   if (editAvatarBtn && avatarUpload) {
     editAvatarBtn.addEventListener("click", () => avatarUpload.click());
     avatarUpload.addEventListener("change", (e) => {
-      processImageUpload(e.target.files[0], (base64) => {
-        if (window.currentAuthUser) {
-          window.currentAuthUser.avatar = base64;
-          saveData();
-          updateUI();
-        }
+      processImageUpload(e.target.files[0], async (base64) => {
+        if (!window.currentAuthUser) return;
+        window.currentAuthUser.avatar = base64;
+        await updateAccountProfile({ avatar: base64 });
+        saveData();
+        updateUI();
       });
     });
   }

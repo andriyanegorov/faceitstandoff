@@ -34,15 +34,147 @@
     <main class="container">
       <div class="admin-layout">
         <aside class="admin-sidebar" aria-label="Навигация админки">
-          <h1 class="admin-title">Разделы</h1>
-          <p class="admin-muted">Пока это макет админки под десктоп. Дальше подключим управление новостями и матчами.</p>
+          <h1 class="admin-title">Админ-панель</h1>
+          <nav class="admin-menu" aria-label="Админ-меню">
+            <button type="button" class="admin-tab admin-tab--active" data-admin-tab="dashboard">Обзор</button>
+            <button type="button" class="admin-tab" data-admin-tab="news">Новости</button>
+            <button type="button" class="admin-tab" data-admin-tab="profiles">Профили</button>
+            <button type="button" class="admin-tab" data-admin-tab="stats">Статистика</button>
+          </nav>
+          <div class="admin-card admin-summary-card">
+            <p class="admin-muted">Управляйте контентом сайта: создавайте новости, редактируйте профили пользователей и правьте статистику прямо из админки.</p>
+          </div>
         </aside>
 
         <section class="admin-main" aria-label="Контент админки">
-          <h2 class="admin-title">Обзор</h2>
-          <p class="admin-muted">Здесь будут карточки статистики, модерация и редактирование новостей.</p>
+          <div id="admin-notice" class="admin-notice card" hidden></div>
+
+          <section id="dashboard" class="admin-panel admin-panel--active">
+            <h2 class="page__title">Обзор</h2>
+            <div class="admin-grid" id="dashboard-cards"></div>
+            <div class="card admin-section-card">
+              <h3 class="page__title">Последние новости</h3>
+              <div id="dashboard-latest-news" class="admin-list"></div>
+            </div>
+          </section>
+
+          <section id="news" class="admin-panel" hidden>
+            <div class="admin-panel-grid">
+              <div class="card admin-section-card">
+                <h2 class="page__title">Редактор новостей</h2>
+                <div id="news-list" class="admin-list"></div>
+              </div>
+              <div class="card admin-section-card">
+                <h2 class="page__title">Создать / редактировать</h2>
+                <form id="news-form" class="form-grid">
+                  <label class="input-group">
+                    <span>Заголовок</span>
+                    <input id="news-title" type="text" placeholder="Введите заголовок" required />
+                  </label>
+                  <label class="input-group">
+                    <span>Текст</span>
+                    <textarea id="news-text" rows="4" placeholder="Введите текст новости"></textarea>
+                  </label>
+                  <label class="input-group">
+                    <span>URL картинки</span>
+                    <input id="news-image" type="url" placeholder="https://..." />
+                  </label>
+                  <label class="input-group input-group-inline">
+                    <span>Закрепить</span>
+                    <input id="news-pinned" type="checkbox" />
+                  </label>
+                  <input id="news-id" type="hidden" />
+                  <div class="form-actions">
+                    <button type="submit" class="glow-btn">Сохранить новость</button>
+                    <button type="button" id="news-reset" class="glow-btn glow-btn--outline">Очистить</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section id="profiles" class="admin-panel" hidden>
+            <div class="admin-panel-grid">
+              <div class="card admin-section-card">
+                <h2 class="page__title">Поиск профиля</h2>
+                <form id="profile-search-form" class="form-grid">
+                  <label class="input-group">
+                    <span>Никнейм</span>
+                    <input id="profile-search" type="text" placeholder="Введите username" required />
+                  </label>
+                  <div class="form-actions">
+                    <button type="submit" class="glow-btn">Найти</button>
+                  </div>
+                </form>
+                <div id="profile-search-result" class="admin-list"></div>
+              </div>
+
+              <div class="card admin-section-card">
+                <h2 class="page__title">Редактирование профиля</h2>
+                <form id="profile-form" class="form-grid">
+                  <label class="input-group">
+                    <span>Username</span>
+                    <input id="profile-username" type="text" disabled />
+                  </label>
+                  <label class="input-group">
+                    <span>Avatar URL</span>
+                    <input id="profile-avatar" type="url" placeholder="https://..." />
+                  </label>
+                  <label class="input-group">
+                    <span>Бейдж</span>
+                    <select id="profile-badge">
+                      <option value="">Нет</option>
+                      <option value="verified">Верифицированный</option>
+                      <option value="celebrity">Знаменитость</option>
+                      <option value="admin">Админ FACEIT</option>
+                    </select>
+                  </label>
+                  <label class="input-group">
+                    <span>ELO</span>
+                    <input id="profile-elo" type="number" min="0" />
+                  </label>
+                  <label class="input-group">
+                    <span>Матчи</span>
+                    <input id="profile-matches" type="number" min="0" />
+                  </label>
+                  <label class="input-group">
+                    <span>Победы</span>
+                    <input id="profile-wins" type="number" min="0" />
+                  </label>
+                  <label class="input-group">
+                    <span>Убийства</span>
+                    <input id="profile-kills" type="number" min="0" />
+                  </label>
+                  <label class="input-group">
+                    <span>Смерти</span>
+                    <input id="profile-deaths" type="number" min="0" />
+                  </label>
+                  <label class="input-group">
+                    <span>Хедшоты</span>
+                    <input id="profile-headshots" type="number" min="0" />
+                  </label>
+                  <div class="form-actions">
+                    <button type="submit" class="glow-btn">Сохранить профиль</button>
+                    <button type="button" id="profile-clear" class="glow-btn glow-btn--outline">Сброс</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section id="stats" class="admin-panel" hidden>
+            <h2 class="page__title">Статистика</h2>
+            <div class="admin-grid" id="stats-cards"></div>
+            <div class="card admin-section-card">
+              <h3 class="page__title">Топ игроков</h3>
+              <div id="stats-top-accounts" class="admin-list"></div>
+            </div>
+          </section>
         </section>
       </div>
     </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="admin.js"></script>
   </body>
 </html>
