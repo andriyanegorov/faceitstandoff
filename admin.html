@@ -39,6 +39,7 @@
             <button type="button" class="admin-tab admin-tab--active" data-admin-tab="dashboard">Обзор</button>
             <button type="button" class="admin-tab" data-admin-tab="news">Новости</button>
             <button type="button" class="admin-tab" data-admin-tab="profiles">Профили</button>
+            <button type="button" class="admin-tab" data-admin-tab="achievements">Достижения</button>
             <button type="button" class="admin-tab" data-admin-tab="stats">Статистика</button>
           </nav>
           <div class="admin-card admin-summary-card">
@@ -156,6 +157,70 @@
                   <div class="form-actions">
                     <button type="submit" class="glow-btn">Сохранить профиль</button>
                     <button type="button" id="profile-clear" class="glow-btn glow-btn--outline">Сброс</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section id="achievements" class="admin-panel" hidden>
+            <div class="admin-panel-grid">
+              <div class="card admin-section-card">
+                <h2 class="page__title">Список достижений</h2>
+                <div id="achievements-list" class="admin-list"></div>
+              </div>
+
+              <div class="card admin-section-card">
+                <h2 class="page__title">Создать / редактировать достижение</h2>
+                <form id="achievement-form" class="form-grid">
+                  <label class="input-group">
+                    <span>Название</span>
+                    <input id="achievement-name" type="text" placeholder="Название достижения" required />
+                  </label>
+                  <label class="input-group">
+                    <span>Описание</span>
+                    <textarea id="achievement-description" rows="3" placeholder="Описание достижения"></textarea>
+                  </label>
+                  <label class="input-group">
+                    <span>URL иконки</span>
+                    <input id="achievement-icon" type="url" placeholder="https://..." required />
+                  </label>
+                  <label class="input-group">
+                    <span>Редкость</span>
+                    <select id="achievement-rarity">
+                      <option value="Обычный">Обычный</option>
+                      <option value="Редкий">Редкий</option>
+                      <option value="Эпический">Эпический</option>
+                      <option value="Легендарный">Легендарный</option>
+                      <option value="Уникальный">Уникальный</option>
+                    </select>
+                  </label>
+                  <label class="input-group">
+                    <span>Цвет (hex)</span>
+                    <input id="achievement-color" type="text" placeholder="#FF5500" />
+                  </label>
+                  <div class="form-actions">
+                    <button type="submit" class="glow-btn">Сохранить достижение</button>
+                    <button type="button" id="achievement-clear" class="glow-btn glow-btn--outline">Очистить</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="card admin-section-card">
+                <h2 class="page__title">Выдать достижение</h2>
+                <form id="assign-achievement-form" class="form-grid">
+                  <label class="input-group">
+                    <span>Имя игрока</span>
+                    <input id="assign-username" type="text" placeholder="Введите имя игрока" required />
+                  </label>
+                  <label class="input-group">
+                    <span>Выберите достижение</span>
+                    <select id="assign-achievement-select" required>
+                      <option value="">-- Загружаю... --</option>
+                    </select>
+                  </label>
+                  <div class="form-actions">
+                    <button type="submit" class="glow-btn">Выдать достижение</button>
                   </div>
                 </form>
               </div>

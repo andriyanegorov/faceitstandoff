@@ -188,6 +188,14 @@
 					<button id="toggle-match-history" class="glow-btn glow-btn--sm" style="margin-top: 6px;">Посмотреть историю матчей</button>
 					<div class="match-history" id="profile-match-history" hidden></div>
 				</div>
+
+				<!-- Achievements -->
+				<div class="card profile-achievements">
+					<h2 class="profile-title">Достижения</h2>
+					<div class="achievements-grid" id="profile-achievements">
+						<!-- Достижения будут добавлены через JS -->
+					</div>
+				</div>
 			</section>
 
 			<section id="matches" class="page" role="tabpanel" aria-label="Матчи" hidden>
@@ -201,8 +209,6 @@
 				<div class="leaderboard-container">
 					<div class="leaderboard-header">
 						<div class="lead-col lead-col-rank">МЕСТО</div>
-						<div class="lead-col lead-col-player">ИГРОК</div>
-						<div class="lead-col lead-col-matches">МАТЧЕЙ</div>
 						<div class="lead-col lead-col-elo">ELO</div>
 					</div>
 					<div class="leaderboard-list" id="leaderboard-list">
@@ -320,6 +326,36 @@
 				</div>
 				<div class="match-modal__body" id="match-modal-content">
 					<!-- Здесь динамически загружается инфа о матче -->
+				</div>
+			</div>
+		</div>
+
+		<!-- Модалка игрока -->
+		<div id="player-modal" class="modal" hidden>
+			<div class="modal__content modal-player">
+				<div class="match-modal__header">
+					<h2 class="match-modal__title">Профиль игрока</h2>
+					<button class="match-modal__close" id="close-player-modal" title="Закрыть">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+					</button>
+				</div>
+				<div class="match-modal__body" id="player-modal-content">
+					<!-- Динамически загружается инфа об игроке -->
+				</div>
+			</div>
+		</div>
+
+		<!-- Модалка достижения -->
+		<div id="achievement-modal" class="modal" hidden>
+			<div class="modal__content modal-achievement">
+				<div class="match-modal__header">
+					<h2 class="match-modal__title">Достижение</h2>
+					<button class="match-modal__close" id="close-achievement-modal" title="Закрыть">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+					</button>
+				</div>
+				<div class="match-modal__body" id="achievement-modal-content">
+					<!-- Информация о достижении -->
 				</div>
 			</div>
 		</div>

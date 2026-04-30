@@ -108,6 +108,10 @@ async function renderLeaderboard() {
         <div class="lead-col lead-col-matches">${player.matches || 0}</div>
         <div class="lead-col lead-col-elo">${player.elo || 0}</div>
       `;
+      
+      item.style.cursor = "pointer";
+      item.addEventListener("click", () => openPlayerModal(player.username));
+      
       container.appendChild(item);
     });
   } catch (err) {
@@ -219,6 +223,124 @@ async function initNewsSlider() {
   startAuto();
 }
 
+const renderAchievements = (achievements) => {
+  const container = document.getElementById("profile-achievements");
+  if (!container) return;
+
+  const getAchievementIconClass = (iconUrl) => {
+    const cleanUrl = String(iconUrl || "").split("?")[0].toLowerCase();
+    if (cleanUrl.endsWith(".gif") || cleanUrl.endsWith(".webp") || cleanUrl.endsWith(".apng")) {
+      return "achievement-icon achievement-icon--alive";
+    }
+    return "achievement-icon";
+  };
+
+  const getAchievementPatternStyle = (iconUrl) => {
+    const safeUrl = String(iconUrl || "").replace(/"/g, '&quot;');
+    return `--achievement-pattern-url: url("${safeUrl}");`;
+  };
+  
+  if (!Array.isArray(achievements) || achievements.length === 0) {
+    container.innerHTML = "<div style='padding: 20px; text-align: center; color: var(--color-text-secondary); grid-column: 1/-1;'>Нет достижений</div>";
+    return;
+  }
+
+  container.innerHTML = "";
+  achievements.forEach((achievement) => {
+    const badge = document.createElement("div");
+    const getRarityClass = (rarity) => {
+      const normalized = String(rarity || "").toLowerCase();
+      if (normalized.includes("уник")) return "rarity-unique";
+      if (normalized.includes("леген")) return "rarity-legendary";
+      if (normalized.includes("эпик") || normalized.includes("эпичес")) return "rarity-epic";
+      if (normalized.includes("редк")) return "rarity-rare";
+      return "rarity-common";
+    };
+
+    const rarityClass = getRarityClass(achievement.rarity);
+    badge.className = `achievement-badge ${achievement.unlocked ? "" : "locked"} ${rarityClass}`;
+    badge.style.cssText = getAchievementPatternStyle(achievement.icon);
+    badge.innerHTML = `
+      <img src="${achievement.icon}" alt="${achievement.name}" class="${getAchievementIconClass(achievement.icon)}">
+    `;
+    badge.addEventListener("click", () => openAchievementModal({
+      ...achievement,
+      ownerUsername: window.currentAuthUser?.username || achievement.ownerUsername,
+      ownerBadge: window.currentAuthUser?.badge || achievement.ownerBadge,
+    }));
+    container.appendChild(badge);
+  });
+};
+
+async function openAchievementModal(achievement) {
+  const modal = document.getElementById("achievement-modal");
+  const content = document.getElementById("achievement-modal-content");
+  if (!modal || !content) return;
+
+  const cleanIconUrl = String(achievement.icon || "").split("?")[0].toLowerCase();
+  const isAnimatedIcon = /\.(gif|webp|apng)$/.test(cleanIconUrl);
+  const rarityLabel = achievement.rarity || "Обычное";
+  const ownerUsername = achievement.ownerUsername || "-";
+  const ownerBadge = achievement.ownerBadge || null;
+  const ownerBadgeHtml = (() => {
+    if (!ownerBadge) return "";
+    if (ownerBadge === "verified") {
+      return '<span class="badge-pill badge-pill--verified" title="Верифицированный"><img src="img/Verified.png" alt="Verified"></span>';
+    }
+    if (ownerBadge === "celebrity") {
+      return '<span class="badge-pill badge-pill--celebrity" title="Знаменитость"><img src="img/Celebrity.png" alt="Celebrity"></span>';
+    }
+    if (ownerBadge === "admin") {
+      return '<span class="badge-pill badge-pill--admin" title="Админ FACEIT"><img src="img/admin.png" alt="Admin"></span>';
+    }
+    return "";
+  })();
+  const detailRows = [
+    ["Владелец", `${ownerUsername} ${ownerBadgeHtml}`.trim()],
+    ["Редкость", rarityLabel],
+    ["Цвет", achievement.color || "-"],
+    ["Описание", achievement.description || "Особое достижение"],
+  ];
+  
+  modal.hidden = false;
+  content.innerHTML = `
+    <div class="achievement-modal-content">
+      <div class="achievement-modal-hero ${achievement.color ? "" : "achievement-modal-hero--default"}" style="${achievement.color ? `--achievement-accent: ${achievement.color};` : ""} --achievement-pattern-url: url(\"${String(achievement.icon || "").replace(/\"/g, '&quot;')}\");">
+        <div class="achievement-modal-hero__pattern"></div>
+        <div class="achievement-modal-hero__icon-wrap">
+          <img src="${achievement.icon}" alt="${achievement.name}" class="achievement-modal-icon ${isAnimatedIcon ? "achievement-modal-icon--alive" : ""}">
+        </div>
+        <h2 class="achievement-modal-title">${achievement.name}</h2>
+        <p class="achievement-modal-subtitle">${rarityLabel}</p>
+      </div>
+
+      <div class="achievement-modal-panel">
+        <div class="achievement-modal-table">
+          ${detailRows
+            .map(([label, value]) => `
+              <div class="achievement-modal-row">
+                <div class="achievement-modal-row__label">${label}</div>
+                <div class="achievement-modal-row__value">${value}</div>
+              </div>
+            `)
+            .join("")}
+        </div>
+
+        <div class="achievement-modal-note">
+          <span>Достижение отображается в профиле и в топе лидеров.</span>
+        </div>
+
+        <button type="button" class="glow-btn achievement-modal-btn" id="achievement-modal-ok">OK</button>
+      </div>
+    </div>
+  `;
+
+  const okButton = document.getElementById("achievement-modal-ok");
+  okButton?.addEventListener("click", () => {
+    modal.hidden = true;
+  });
+}
+
 // Авторизация
 function initAuth() {
   const registerModal = document.getElementById("register-modal");
@@ -308,7 +430,7 @@ function initAuth() {
         } else {
           window.currentAuthUser = parsed;
         }
-        updateUI();
+        await updateUI();
         return;
       }
     } catch (error) {
@@ -316,7 +438,7 @@ function initAuth() {
     }
 
     window.currentAuthUser = null;
-    updateUI();
+    await updateUI();
   };
 
   const saveData = () => {
@@ -372,6 +494,7 @@ function initAuth() {
       headshotRate: totals.headshotRate,
       avgKills: totals.avgKills,
       matchHistory,
+      achievements: await loadDefaultAchievements(),
     };
 
     return accountForClient;
@@ -516,6 +639,10 @@ function initAuth() {
     profile.avgKills = Number(profile.avgKills) || totals.avgKills;
     profile.headshotRate = Number(profile.headshotRate) || totals.headshotRate;
     profile.elo = Number(profile.elo) || totals.currentElo;
+
+    if (!Array.isArray(profile.achievements)) {
+      profile.achievements = [];
+    }
 
     return profile;
   };
@@ -773,9 +900,14 @@ function initAuth() {
     matchModal.hidden = false;
   };
 
-  const updateUI = () => {
+  const updateUI = async () => {
     if (window.currentAuthUser) {
       window.currentAuthUser = ensureUserStats(window.currentAuthUser);
+
+      // Enrich achievements with full data
+      if (Array.isArray(window.currentAuthUser.achievements)) {
+        window.currentAuthUser.achievements = await enrichAchievements(window.currentAuthUser.achievements);
+      }
 
       const matches = Number(window.currentAuthUser.matches) || 0;
       const wins = Number(window.currentAuthUser.wins) || 0;
@@ -813,6 +945,7 @@ function initAuth() {
       profileHs.textContent = `${window.currentAuthUser.headshotRate || 0}%`;
       renderEloChart(window.currentAuthUser.matchHistory);
       renderMatchHistory(window.currentAuthUser.matchHistory);
+      renderAchievements(window.currentAuthUser.achievements || []);
       loginBtn.hidden = true;
       logoutBtn.hidden = false;
 
@@ -849,6 +982,7 @@ function initAuth() {
       profileHs.textContent = "0%";
       renderEloChart([]);
       renderMatchHistory([]);
+      renderAchievements([]);
       loginBtn.hidden = false;
       logoutBtn.hidden = true;
 
@@ -920,7 +1054,7 @@ function initAuth() {
 
       window.currentAuthUser = await createAccount(username, password);
       saveData();
-      updateUI();
+      await updateUI();
       closeModals();
 
       // Переходим на сохранённую страницу, если была
@@ -958,7 +1092,7 @@ function initAuth() {
 
       window.currentAuthUser = account;
       saveData();
-      updateUI();
+      await updateUI();
       closeModals();
 
       // Переходим на сохранённую страницу, если была
@@ -994,10 +1128,10 @@ function initAuth() {
   });
 
   // Кнопка "Выйти"
-  logoutBtn.addEventListener("click", () => {
+  logoutBtn.addEventListener("click", async () => {
     window.currentAuthUser = null;
     saveData();
-    updateUI();
+    await updateUI();
   });
 
   // Кнопка показа истории матчей
@@ -1040,7 +1174,7 @@ function initAuth() {
         if (window.currentAuthUser) {
           window.currentAuthUser.headerBg = base64;
           saveData();
-          updateUI();
+          await updateUI();
         }
       });
     });
@@ -1054,9 +1188,298 @@ function initAuth() {
         window.currentAuthUser.avatar = base64;
         await updateAccountProfile({ avatar: base64 });
         saveData();
-        updateUI();
+        await updateUI();
       });
     });
+  }
+}
+
+async function openPlayerModal(username) {
+  const modal = document.getElementById("player-modal");
+  const content = document.getElementById("player-modal-content");
+  if (!modal || !content) return;
+  
+  modal.hidden = false;
+  content.innerHTML = "<div style='text-align:center; padding: 20px;'>Загрузка данных...</div>";
+
+  try {
+    const { data: player, error } = await supabaseClient
+      .from('accounts')
+      .select('*')
+      .eq('username', username)
+      .maybeSingle();
+
+    if (error || !player) {
+      content.innerHTML = "<div style='text-align:center; padding: 20px;'>Игрок не найден</div>";
+      return;
+    }
+
+    // Enrich achievements with full data
+    if (Array.isArray(player.achievements)) {
+      player.achievements = await enrichAchievements(player.achievements);
+    }
+
+    const avatarSrc = player.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Player";
+    const wins = player.wins || 0;
+    const matches = player.matches || 0;
+    const kills = player.kills || 0;
+    const deaths = player.deaths || 0;
+    const headshots = player.headshots || 0;
+
+    const winrate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+    const hs = kills > 0 ? Math.round((headshots / kills) * 100) : 0;
+    const losses = matches - wins;
+
+    const badgeHtml = (() => {
+        if (!player.badge) return "";
+        if (player.badge === 'verified') return '<span class="badge-pill badge-pill--verified"><img src="img/Verified.png" alt="Verified"></span>';
+        if (player.badge === 'celebrity') return '<span class="badge-pill badge-pill--celebrity"><img src="img/Celebrity.png" alt="Celebrity"></span>';
+        if (player.badge === 'admin') return '<span class="badge-pill badge-pill--admin"><img src="img/admin.png" alt="Admin"></span>';
+        return "";
+    })();
+
+    content.innerHTML = `
+      <div class="modal-player-overview">
+        <div class="modal-player-hero" style="${player.headerBg ? `background-image: url('${player.headerBg}');` : ''}">
+          <div class="modal-player-avatar-wrap">
+            <img src="${avatarSrc}" class="modal-player-avatar" alt="Avatar">
+          </div>
+          <h2 class="modal-player-name">${player.username} ${badgeHtml}</h2>
+          <div class="modal-player-elo-badge">
+            <img src="img/faceit.png" alt="FACEIT">
+            <div class="elo-val">${player.elo || 0} <span>ELO</span></div>
+          </div>
+        </div>
+        
+        <div class="profile-quick-stats modal-player-q-stats">
+          <div class="q-stat">
+            <span class="q-stat__val">${matches}</span>
+            <span class="q-stat__lbl">Матчи</span>
+          </div>
+          <div class="q-stat">
+            <span class="q-stat__val">${winrate}%</span>
+            <span class="q-stat__lbl">Winrate</span>
+          </div>
+          <div class="q-stat">
+            <span class="q-stat__val">${kd}</span>
+            <span class="q-stat__lbl">K/D</span>
+          </div>
+          <div class="q-stat">
+            <span class="q-stat__val">${hs}%</span>
+            <span class="q-stat__lbl">HS%</span>
+          </div>
+        </div>
+
+        <div class="ext-stats-grid modal-player-ext-stats">
+          <div class="ext-stat">
+            <span class="ext-stat__lbl">Победы</span>
+            <strong class="ext-stat__val" style="color: var(--color-win);">${wins}</strong>
+          </div>
+          <div class="ext-stat">
+            <span class="ext-stat__lbl">Поражения</span>
+            <strong class="ext-stat__val" style="color: var(--color-loss);">${losses}</strong>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const safeHistory = Array.isArray(player.matchHistory) ? player.matchHistory.slice(-10) : [];
+    if (safeHistory.length > 0) {
+      const width = 330;
+      const height = 158;
+      const paddingX = 26;
+      const paddingTop = 12;
+      const paddingBottom = 24;
+
+      const eloValues = safeHistory.map((item) => Number(item.eloAfter) || 0);
+      const minElo = Math.min(...eloValues);
+      const maxElo = Math.max(...eloValues);
+      const span = Math.max(1, maxElo - minElo);
+
+      const points = safeHistory
+        .map((item, index) => {
+          const x = paddingX + (index * (width - paddingX * 2)) / (safeHistory.length - 1 || 1);
+          const y = paddingTop + ((maxElo - (Number(item.eloAfter) || minElo)) * (height - paddingTop - paddingBottom)) / span;
+          return `${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(" ");
+
+      const yTop = maxElo;
+      const yBottom = minElo;
+
+      const chartSection = document.createElement('div');
+      chartSection.className = 'card profile-history';
+      chartSection.style.margin = '0 20px 20px';
+      chartSection.style.boxShadow = 'none';
+      chartSection.innerHTML = `
+        <h2 class="profile-title" style="margin-bottom:12px;">Последние 10 матчей</h2>
+        <div class="elo-chart" id="modal-elo-chart">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+            <line class="elo-chart__grid" x1="${paddingX}" y1="${paddingTop}" x2="${width - paddingX}" y2="${paddingTop}" />
+            <line class="elo-chart__grid" x1="${paddingX}" y1="${height - paddingBottom}" x2="${width - paddingX}" y2="${height - paddingBottom}" />
+            <polyline class="elo-chart__line" points="${points}" />
+            ${safeHistory
+              .map((item, index) => {
+                const x = paddingX + (index * (width - paddingX * 2)) / (safeHistory.length - 1 || 1);
+                const y = paddingTop + ((maxElo - (Number(item.eloAfter) || minElo)) * (height - paddingTop - paddingBottom)) / span;
+                return `<circle class="elo-chart__point" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="2.8" />`;
+              })
+              .join("")}
+            <text class="elo-chart__label" x="${paddingX}" y="${height - 6}">1</text>
+            <text class="elo-chart__label" x="${width - paddingX - 8}" y="${height - 6}">${safeHistory.length}</text>
+            <text class="elo-chart__label" x="${paddingX}" y="${paddingTop - 2}">${yTop}</text>
+            <text class="elo-chart__label" x="${paddingX}" y="${height - paddingBottom - 4}">${yBottom}</text>
+          </svg>
+          <div id="modal-elo-tooltip" class="elo-chart__tooltip"></div>
+        </div>
+      `;
+      content.querySelector('.modal-player-overview').appendChild(chartSection);
+
+      const modalEloChart = document.getElementById('modal-elo-chart');
+      const tooltip = document.getElementById('modal-elo-tooltip');
+      const circles = modalEloChart.querySelectorAll('.elo-chart__point');
+
+      circles.forEach((circle, index) => {
+        circle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          circles.forEach(c => c.classList.remove("active"));
+          circle.classList.add("active");
+
+          const targetMatch = safeHistory[index];
+          if (!targetMatch) return;
+
+          const isWin = targetMatch.eloChange > 0;
+          const sign = isWin ? '+' : '';
+          const colorClass = isWin ? 'win' : 'loss';
+          const mapName = targetMatch.map || "Разное";
+
+          tooltip.innerHTML = `
+            <div class="tooltip-title">
+              <span>${mapName}</span>
+              <span class="${colorClass}">${sign}${targetMatch.eloChange} ELO</span>
+            </div>
+            <div class="tooltip-stats">
+              <span>ELO: <strong>${targetMatch.eloAfter}</strong></span>
+              <span>K/D/A: <strong>${targetMatch.kills}/${targetMatch.deaths}/${targetMatch.assists}</strong></span>
+            </div>
+          `;
+
+          const svgRect = circle.closest("svg").getBoundingClientRect();
+          const cx = parseFloat(circle.getAttribute("cx"));
+          const cy = parseFloat(circle.getAttribute("cy"));
+          
+          const scaleX = svgRect.width / width;
+          const scaleY = svgRect.height / height;
+          
+          const realX = cx * scaleX;
+          const realY = cy * scaleY;
+
+          tooltip.style.left = `${realX}px`;
+          tooltip.style.top = `${realY}px`;
+          tooltip.classList.add("show");
+        });
+      });
+
+      document.addEventListener("click", () => {
+        if (tooltip) {
+          tooltip.classList.remove("show");
+          circles.forEach(c => c.classList.remove("active"));
+        }
+      }, { once: true });
+      
+      tooltip.addEventListener("click", (e) => e.stopPropagation());
+    }
+
+    // Render achievements in player modal
+    if (Array.isArray(player.achievements) && player.achievements.length > 0) {
+      const achievementsSection = document.createElement('div');
+      achievementsSection.className = 'card profile-history';
+      achievementsSection.style.margin = '0 20px 20px';
+      achievementsSection.style.boxShadow = 'none';
+      achievementsSection.innerHTML = `<h2 class="profile-title" style="margin-bottom:12px;">Достижения</h2>`;
+      
+      const achievementsGrid = document.createElement('div');
+      achievementsGrid.className = 'achievements-grid';
+      
+      player.achievements.forEach((ach) => {
+        const badge = document.createElement('div');
+        const normalized = String(ach.rarity || '').toLowerCase();
+        const rarityClass = normalized.includes('уник')
+          ? 'rarity-unique'
+          : normalized.includes('леген')
+            ? 'rarity-legendary'
+            : normalized.includes('эпик') || normalized.includes('эпичес')
+              ? 'rarity-epic'
+              : normalized.includes('редк')
+                ? 'rarity-rare'
+                : 'rarity-common';
+        badge.className = `achievement-badge ${!ach.unlocked ? 'locked' : ''} ${rarityClass}`;
+        badge.style.cssText = `--achievement-pattern-url: url("${String(ach.icon || '').replace(/"/g, '&quot;')}");`;
+        const cleanIconUrl = String(ach.icon || '').split('?')[0].toLowerCase();
+        const iconClass = cleanIconUrl.endsWith('.gif') || cleanIconUrl.endsWith('.webp') || cleanIconUrl.endsWith('.apng')
+          ? 'achievement-icon achievement-icon--alive'
+          : 'achievement-icon';
+        badge.innerHTML = `
+          <img src="${ach.icon}" alt="${ach.name}" class="${iconClass}">
+        `;
+        badge.addEventListener('click', () => openAchievementModal({
+          ...ach,
+          ownerUsername: player.username,
+          ownerBadge: player.badge || null,
+        }));
+        achievementsGrid.appendChild(badge);
+      });
+      
+      achievementsSection.appendChild(achievementsGrid);
+      content.querySelector('.modal-player-overview').appendChild(achievementsSection);
+    }
+
+  } catch (err) {
+    console.error(err);
+    content.innerHTML = "<div style='text-align:center; padding: 20px;'>Произошла ошибка</div>";
+  }
+}
+
+async function loadDefaultAchievements() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('achievements')
+      .select('*')
+      .limit(6);
+
+    if (error || !data) return [];
+    
+    return data.map(ach => ({
+      ...ach,
+      unlocked: false
+    }));
+  } catch (err) {
+    console.error('Error loading achievements:', err);
+    return [];
+  }
+}
+
+async function enrichAchievements(achievementsData) {
+  if (!Array.isArray(achievementsData) || achievementsData.length === 0) return [];
+  
+  try {
+    const { data: allAchievements, error } = await supabaseClient
+      .from('achievements')
+      .select('*');
+    
+    if (error || !allAchievements) return achievementsData;
+    
+    const achievementMap = new Map(allAchievements.map(a => [a.id, a]));
+    
+    return achievementsData.map(userAch => ({
+      ...achievementMap.get(userAch.id),
+      unlocked: userAch.unlocked,
+      unlockedDate: userAch.unlockedDate
+    })).filter(ach => ach.id);
+  } catch (err) {
+    console.error('Error enriching achievements:', err);
+    return achievementsData;
   }
 }
 
@@ -1070,6 +1493,34 @@ document.addEventListener("DOMContentLoaded", () => {
       setActivePage(targetId);
     });
   });
+  
+  const playerModal = document.getElementById("player-modal");
+  const closePlayerModal = document.getElementById("close-player-modal");
+  
+  if (closePlayerModal) {
+    closePlayerModal.addEventListener("click", () => {
+      if (playerModal) playerModal.hidden = true;
+    });
+  }
+  if (playerModal) {
+    playerModal.addEventListener("click", (e) => {
+      if (e.target === playerModal) playerModal.hidden = true;
+    });
+  }
+  
+  const achievementModal = document.getElementById("achievement-modal");
+  const closeAchievementModal = document.getElementById("close-achievement-modal");
+  
+  if (closeAchievementModal) {
+    closeAchievementModal.addEventListener("click", () => {
+      if (achievementModal) achievementModal.hidden = true;
+    });
+  }
+  if (achievementModal) {
+    achievementModal.addEventListener("click", (e) => {
+      if (e.target === achievementModal) achievementModal.hidden = true;
+    });
+  }
 
   initNewsSlider();
   initAuth();

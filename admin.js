@@ -39,6 +39,17 @@ const elements = {
   profileClear: document.getElementById('profile-clear'),
   statsCards: document.getElementById('stats-cards'),
   statsTopAccounts: document.getElementById('stats-top-accounts'),
+  achievementsList: document.getElementById('achievements-list'),
+  achievementForm: document.getElementById('achievement-form'),
+  achievementName: document.getElementById('achievement-name'),
+  achievementDescription: document.getElementById('achievement-description'),
+  achievementIcon: document.getElementById('achievement-icon'),
+  achievementRarity: document.getElementById('achievement-rarity'),
+  achievementColor: document.getElementById('achievement-color'),
+  achievementClear: document.getElementById('achievement-clear'),
+  assignUsernameInput: document.getElementById('assign-username'),
+  assignAchievementSelect: document.getElementById('assign-achievement-select'),
+  assignAchievementForm: document.getElementById('assign-achievement-form'),
 };
 
 const showNotice = (text, type = 'info') => {
@@ -415,6 +426,160 @@ const refreshStats = async () => {
   }
 };
 
+const fetchAchievements = async () => {
+  const { data, error } = await supabaseAdmin.from('achievements').select('*');
+  if (error) {
+    console.error('Error fetching achievements:', error);
+    return [];
+  }
+  return data || [];
+};
+
+const saveAchievement = async (event) => {
+  event.preventDefault();
+  const name = elements.achievementName.value.trim();
+  const description = elements.achievementDescription.value.trim();
+  const icon = elements.achievementIcon.value.trim();
+  const rarity = elements.achievementRarity.value;
+  const color = elements.achievementColor.value.trim();
+
+  if (!name || !icon) {
+    showNotice('Заполните название и URL иконки.', 'error');
+    return;
+  }
+
+  const payload = {
+    name,
+    description,
+    icon,
+    rarity,
+    color: color || null,
+  };
+
+  const { error } = await supabaseAdmin
+    .from('achievements')
+    .insert([payload]);
+
+  if (error) {
+    console.error('Error saving achievement:', error);
+    showNotice('Не удалось сохранить достижение.', 'error');
+    return;
+  }
+
+  showNotice('Достижение создано успешно!', 'success');
+  elements.achievementForm.reset();
+  refreshAchievements();
+};
+
+const deleteAchievement = async (id) => {
+  if (!confirm('Удалить это достижение?')) return;
+  const { error } = await supabaseAdmin
+    .from('achievements')
+    .delete()
+    .eq('id', id);
+  if (error) {
+    console.error('Error deleting achievement:', error);
+    showNotice('Не удалось удалить достижение.', 'error');
+    return;
+  }
+  showNotice('Достижение удалено.', 'success');
+  refreshAchievements();
+};
+
+const renderAchievementsList = async () => {
+  const achievements = await fetchAchievements();
+  if (!elements.achievementsList) return;
+
+  if (!achievements.length) {
+    elements.achievementsList.innerHTML = '<p class="admin-muted">Нет достижений</p>';
+    return;
+  }
+
+  elements.achievementsList.innerHTML = achievements
+    .map((ach) => `
+      <article class="admin-list-item">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <img src="${ach.icon}" alt="${ach.name}" style="width: 40px; height: 40px; object-fit: contain;" />
+          <div>
+            <strong>${ach.name}</strong>
+            <p>${ach.rarity || 'Обычное'}</p>
+          </div>
+        </div>
+        <button type="button" class="admin-action-btn" data-action="delete-achievement" data-id="${ach.id}" style="color: #ff7b6f;">Удалить</button>
+      </article>
+    `)
+    .join('');
+
+  elements.achievementsList.addEventListener('click', (e) => {
+    if (e.target.dataset.action === 'delete-achievement') {
+      deleteAchievement(e.target.dataset.id);
+    }
+  });
+};
+
+const refreshAchievements = () => {
+  renderAchievementsList();
+};
+
+const assignAchievementToUser = async (username, achievementId) => {
+  const { data: account, error: fetchError } = await supabaseAdmin
+    .from('accounts')
+    .select('achievements')
+    .eq('username', username)
+    .maybeSingle();
+
+  if (fetchError || !account) {
+    showNotice('Пользователь не найден.', 'error');
+    return;
+  }
+
+  let achievements = Array.isArray(account.achievements) ? account.achievements : [];
+  const exists = achievements.some(a => a.id === achievementId && a.unlocked);
+  if (!exists) {
+    achievements.push({
+      id: achievementId,
+      unlocked: true,
+      unlockedDate: new Date().toISOString()
+    });
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from('accounts')
+    .update({ achievements })
+    .eq('username', username);
+
+  if (updateError) {
+    showNotice('Не удалось выдать достижение.', 'error');
+    return;
+  }
+
+  showNotice('Достижение выдано!', 'success');
+};
+
+const populateAchievementSelect = async () => {
+  const achievements = await fetchAchievements();
+  if (!elements.assignAchievementSelect) return;
+  
+  elements.assignAchievementSelect.innerHTML = achievements
+    .map(ach => `<option value="${ach.id}">${ach.name}</option>`)
+    .join('');
+};
+
+const handleAssignAchievement = async (event) => {
+  event.preventDefault();
+  const username = elements.assignUsernameInput.value.trim();
+  const achievementId = elements.assignAchievementSelect.value;
+  
+  if (!username || !achievementId) {
+    showNotice('Заполните все поля.', 'error');
+    return;
+  }
+  
+  await assignAchievementToUser(username, achievementId);
+  elements.assignUsernameInput.value = '';
+  elements.assignAchievementSelect.value = '';
+};
+
 const initAdmin = () => {
   bindTabs();
   elements.newsForm?.addEventListener('submit', saveNewsItem);
@@ -423,7 +588,12 @@ const initAdmin = () => {
   elements.profileSearchForm?.addEventListener('submit', searchProfile);
   elements.profileForm?.addEventListener('submit', saveProfile);
   elements.profileClear?.addEventListener('click', clearProfileForm);
+  elements.achievementForm?.addEventListener('submit', saveAchievement);
+  elements.achievementClear?.addEventListener('click', () => elements.achievementForm.reset());
+  elements.assignAchievementForm?.addEventListener('submit', handleAssignAchievement);
   refreshDashboard();
+  refreshAchievements();
+  populateAchievementSelect();
 };
 
 window.addEventListener('DOMContentLoaded', initAdmin);
