@@ -47,6 +47,11 @@ const elements = {
   achievementRarity: document.getElementById('achievement-rarity'),
   achievementColor: document.getElementById('achievement-color'),
   achievementClear: document.getElementById('achievement-clear'),
+  achievementId: document.getElementById('achievement-id'),
+  achievementPreview: document.getElementById('achievement-preview'),
+  achievementPreviewIcon: document.getElementById('achievement-preview-icon'),
+  achievementPreviewName: document.getElementById('achievement-preview-name'),
+  achievementPreviewMeta: document.getElementById('achievement-preview-meta'),
   assignUsernameInput: document.getElementById('assign-username'),
   assignAchievementSelect: document.getElementById('assign-achievement-select'),
   assignAchievementForm: document.getElementById('assign-achievement-form'),
@@ -442,6 +447,7 @@ const saveAchievement = async (event) => {
   const icon = elements.achievementIcon.value.trim();
   const rarity = elements.achievementRarity.value;
   const color = elements.achievementColor.value.trim();
+  const id = elements.achievementId?.value;
 
   if (!name || !icon) {
     showNotice('Заполните название и URL иконки.', 'error');
@@ -456,19 +462,30 @@ const saveAchievement = async (event) => {
     color: color || null,
   };
 
-  const { error } = await supabaseAdmin
-    .from('achievements')
-    .insert([payload]);
-
-  if (error) {
+  try {
+    if (id) {
+      const { error } = await supabaseAdmin
+        .from('achievements')
+        .update(payload)
+        .eq('id', id);
+      if (error) throw error;
+      showNotice('Достижение обновлено.', 'success');
+    } else {
+      const { error } = await supabaseAdmin
+        .from('achievements')
+        .insert([payload]);
+      if (error) throw error;
+      showNotice('Достижение создано успешно!', 'success');
+    }
+  } catch (error) {
     console.error('Error saving achievement:', error);
     showNotice('Не удалось сохранить достижение.', 'error');
     return;
   }
-
-  showNotice('Достижение создано успешно!', 'success');
   elements.achievementForm.reset();
+  if (elements.achievementId) elements.achievementId.value = '';
   refreshAchievements();
+  populateAchievementSelect();
 };
 
 const deleteAchievement = async (id) => {
@@ -484,6 +501,34 @@ const deleteAchievement = async (id) => {
   }
   showNotice('Достижение удалено.', 'success');
   refreshAchievements();
+};
+
+const revokeAchievementFromUser = async (username, achievementId) => {
+  const { data: account, error: fetchError } = await supabaseAdmin
+    .from('accounts')
+    .select('achievements')
+    .eq('username', username)
+    .maybeSingle();
+
+  if (fetchError || !account) {
+    showNotice('Пользователь не найден.', 'error');
+    return;
+  }
+
+  let achievements = Array.isArray(account.achievements) ? account.achievements : [];
+  achievements = achievements.filter(a => String(a.id) !== String(achievementId));
+
+  const { error: updateError } = await supabaseAdmin
+    .from('accounts')
+    .update({ achievements })
+    .eq('username', username);
+
+  if (updateError) {
+    showNotice('Не удалось отобрать достижение.', 'error');
+    return;
+  }
+
+  showNotice('Достижение отобрано.', 'success');
 };
 
 const renderAchievementsList = async () => {
@@ -505,14 +550,56 @@ const renderAchievementsList = async () => {
             <p>${ach.rarity || 'Обычное'}</p>
           </div>
         </div>
-        <button type="button" class="admin-action-btn" data-action="delete-achievement" data-id="${ach.id}" style="color: #ff7b6f;">Удалить</button>
+        <div class="admin-list-actions">
+          <button type="button" class="glow-btn glow-btn--outline" data-action="edit-achievement" data-id="${ach.id}">Изменить</button>
+          <button type="button" class="glow-btn glow-btn--outline" data-action="delete-achievement" data-id="${ach.id}" style="color: #ff7b6f;">Удалить</button>
+          <button type="button" class="glow-btn glow-btn--outline" data-action="grant-achievement" data-id="${ach.id}">Выдать</button>
+          <button type="button" class="glow-btn glow-btn--outline" data-action="revoke-achievement" data-id="${ach.id}">Отобрать</button>
+        </div>
       </article>
     `)
     .join('');
 
-  elements.achievementsList.addEventListener('click', (e) => {
-    if (e.target.dataset.action === 'delete-achievement') {
-      deleteAchievement(e.target.dataset.id);
+  elements.achievementsList.addEventListener('click', async (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+    if (!action || !id) return;
+
+    if (action === 'delete-achievement') {
+      await deleteAchievement(id);
+      return;
+    }
+
+    if (action === 'edit-achievement') {
+      // load achievement and fill form
+      const { data, error } = await supabaseAdmin.from('achievements').select('*').eq('id', id).maybeSingle();
+      if (error || !data) {
+        showNotice('Не удалось загрузить достижение.', 'error');
+        return;
+      }
+      elements.achievementName.value = data.name || '';
+      elements.achievementDescription.value = data.description || '';
+      elements.achievementIcon.value = data.icon || '';
+      elements.achievementRarity.value = data.rarity || 'Обычный';
+      elements.achievementColor.value = data.color || '';
+      if (elements.achievementId) elements.achievementId.value = data.id;
+      updateAchievementPreview();
+      showNotice('Редактируйте достижение и нажмите Сохранить.', 'info');
+      return;
+    }
+
+    if (action === 'grant-achievement') {
+      const username = prompt('Введите ник игрока, которому выдать достижение:');
+      if (username) await assignAchievementToUser(username.trim(), id);
+      return;
+    }
+
+    if (action === 'revoke-achievement') {
+      const username = prompt('Введите ник игрока, у которого отобрать достижение:');
+      if (username) await revokeAchievementFromUser(username.trim(), id);
+      return;
     }
   });
 };
@@ -565,6 +652,19 @@ const populateAchievementSelect = async () => {
     .join('');
 };
 
+const updateAchievementPreview = () => {
+  if (!elements.achievementPreview) return;
+  const name = elements.achievementName.value.trim() || 'Название';
+  const icon = elements.achievementIcon.value.trim();
+  const rarity = elements.achievementRarity.value || 'Обычное';
+  const color = elements.achievementColor.value.trim() || '';
+
+  elements.achievementPreviewName.textContent = name;
+  elements.achievementPreviewMeta.textContent = `${rarity}${color ? ' • ' + color : ''}`;
+  elements.achievementPreviewIcon.innerHTML = icon ? `<img src="${icon}" alt="icon" style="width:48px;height:48px;object-fit:contain;">` : '';
+  if (color) elements.achievementPreviewIcon.style.borderColor = color;
+};
+
 const handleAssignAchievement = async (event) => {
   event.preventDefault();
   const username = elements.assignUsernameInput.value.trim();
@@ -589,7 +689,16 @@ const initAdmin = () => {
   elements.profileForm?.addEventListener('submit', saveProfile);
   elements.profileClear?.addEventListener('click', clearProfileForm);
   elements.achievementForm?.addEventListener('submit', saveAchievement);
-  elements.achievementClear?.addEventListener('click', () => elements.achievementForm.reset());
+  elements.achievementClear?.addEventListener('click', () => {
+    elements.achievementForm.reset();
+    if (elements.achievementId) elements.achievementId.value = '';
+    updateAchievementPreview();
+  });
+  // live preview listeners
+  elements.achievementName?.addEventListener('input', updateAchievementPreview);
+  elements.achievementIcon?.addEventListener('input', updateAchievementPreview);
+  elements.achievementRarity?.addEventListener('change', updateAchievementPreview);
+  elements.achievementColor?.addEventListener('input', updateAchievementPreview);
   elements.assignAchievementForm?.addEventListener('submit', handleAssignAchievement);
   refreshDashboard();
   refreshAchievements();

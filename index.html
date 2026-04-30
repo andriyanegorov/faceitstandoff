@@ -30,6 +30,26 @@
 				</a>
 			</div>
 		</header>
+						<!-- Crop Header Modal -->
+						<div id="crop-modal" class="modal" hidden>
+							<div class="modal__content modal-crop" style="max-width: 600px;">
+								<div class="match-modal__header">
+									<h2 class="match-modal__title">Кадрировать шапку профиля</h2>
+									<button class="match-modal__close" id="close-crop-modal" title="Закрыть">
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+									</button>
+								</div>
+								<div class="match-modal__body" id="crop-modal-content">
+									<div id="crop-preview-container" style="position: relative; width: 100%; aspect-ratio: 1920/400; overflow: hidden; border-radius: 8px; border: 2px solid rgba(0, 217, 255, 0.3);">
+										<canvas id="crop-canvas" style="width: 100%; height: 100%; cursor: move;"></canvas>
+									</div>
+									<div style="display: flex; gap: 10px; margin-top: 15px; justify-content: center;">
+										<button id="crop-reset" class="glow-btn glow-btn--outline" style="flex: 1;">Сброс</button>
+										<button id="crop-save" class="glow-btn" style="flex: 1;">Применить</button>
+									</div>
+								</div>
+							</div>
+						</div>
 
 		<main class="container" id="app">
 			<section id="home" class="page page--active page--stack" role="tabpanel" aria-label="Главная">
@@ -129,6 +149,7 @@
 					<div class="profile-hero__info">
 						<h1 class="profile-hero__name" id="profile-name">Гость</h1>
 						<p class="profile-hero__status" id="profile-status">Не авторизован</p>
+						<p class="profile-hero__meta" id="profile-standoff2-id">Standoff 2 ID: не указан</p>
 					</div>
 
 					<div class="profile-hero__elo-block">
@@ -138,6 +159,13 @@
 						<div class="elo-info">
 							<span class="elo-info__label">FACEIT ELO</span>
 							<strong class="elo-info__val" id="profile-elo">0</strong>
+						</div>
+						<div class="elo-level-box">
+							<img id="elo-level-icon" src="level/1.png" alt="Уровень" class="elo-level-icon"/>
+							<div class="elo-level-text">
+								<span class="elo-level-current" id="elo-level-current">0/500</span>
+								<span class="elo-level-next" id="elo-level-next">+0</span>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -198,19 +226,105 @@
 				</div>
 			</section>
 
-			<section id="matches" class="page" role="tabpanel" aria-label="Матчи" hidden>
+			<section id="matches" class="page page--stack" role="tabpanel" aria-label="Матчи" hidden>
 				<h1 class="page__title">Матчи</h1>
-				<p class="page__text">Здесь будет история матчей.</p>
+				<p class="page__text">Создавай кастомные лобби. Войти могут только игроки с ELO в диапазоне создателя ±100.</p>
+				<div class="match-warning-card">
+					<p><strong>Важно:</strong> ID лобби должен точно совпадать с ID игры, иначе зачисление ELO не произойдёт.</p>
+					<p>Создатель матча обязан заснять начало и конец игры. Игроки записывают вход в матч, конец матча и показывают открытые приложения на телефоне.</p>
+				</div>
+
+				<div class="card match-lobby-panel">
+					<div class="match-lobby-panel__header">
+						<div>
+							<h2 class="match-lobby-panel__title">Поиск матча</h2>
+							<p class="match-lobby-panel__subtitle" id="match-flow-status">Ищем подходящее 5x5 лобби...</p>
+							<p class="match-lobby-panel__subtitle" id="match-lobby-range">Диапазон будет рассчитан после входа</p>
+						</div>
+						<button type="button" class="glow-btn glow-btn--outline glow-btn--sm" id="refresh-lobbies-btn">Обновить</button>
+					</div>
+					<div class="match-flow-body">
+						<div class="match-flow-main">
+							<p class="match-flow-text">Автопоиск подключит тебя к подходящему 5x5 лобби. Если ничего не найдено — просто создай своё.</p>
+							<div class="match-flow-actions">
+								<button type="button" class="glow-btn" id="match-search-start-btn">Автопоиск</button>
+								<button type="button" class="glow-btn glow-btn--outline" id="match-create-toggle-btn">Создать лобби</button>
+							</div>
+						</div>
+						<form id="create-lobby-form" class="match-lobby-form" hidden>
+							<p class="match-flow-text">Заполни параметры и создай своё 5x5 лобби.</p>
+							<label class="match-flow-label" for="lobby-title">Название матча</label>
+							<input type="text" id="lobby-title" placeholder="Придумай имя лобби" maxlength="40" required />
+							<label class="match-flow-label" for="lobby-map">Карта</label>
+							<select id="lobby-map" required>
+								<option value="Sandstone">Sandstone</option>
+								<option value="Rust">Rust</option>
+								<option value="Province">Province</option>
+								<option value="Zone 9">Zone 9</option>
+								<option value="Sakura">Sakura</option>
+								<option value="Breeze">Breeze</option>
+								<option value="Dune">Dune</option>
+							</select>
+							<label class="match-flow-label" for="lobby-password">Пароль (необязательно)</label>
+							<input type="password" id="lobby-password" placeholder="Пароль для лобби" />
+							<div class="match-flow-summary">Режим: 5x5 · Максимум: 10 игроков</div>
+							<button type="submit" class="glow-btn">Создать лобби</button>
+						</form>
+						<div class="match-flow-help">
+							<p class="match-flow-text">Нажми «Автопоиск», чтобы система искала подходящий матч автоматически. Или создай своё лобби вручную.</p>
+							<div class="match-flow-actions">
+								<button type="button" class="glow-btn" id="match-refresh-btn">Обновить</button>
+								<button type="button" class="glow-btn glow-btn--outline" id="match-create-from-wait-btn">Создать своё</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="card match-waiting-card" id="match-waiting-panel" hidden>
+					<div class="match-waiting-header">
+						<div>
+							<div class="match-waiting-status">Ожидание матча</div>
+							<h3 class="match-waiting-map" id="waiting-map-name">Sandstone</h3>
+							<div class="match-waiting-info"><span id="waiting-lobby-title">Название лобби</span> · <span id="waiting-lobby-mode">5v5</span></div>
+						</div>
+						<div class="match-waiting-meta">
+							<div class="match-waiting-score">0</div>
+							<div class="match-waiting-vs">VS</div>
+							<div class="match-waiting-score">0</div>
+						</div>
+					</div>
+					<div class="match-waiting-body">
+						<div class="match-waiting-column">
+							<div class="match-waiting-column__title">Ваша команда</div>
+							<div class="match-waiting-players" id="waiting-team-a"></div>
+						</div>
+						<div class="match-waiting-column">
+							<div class="match-waiting-column__title">Противники</div>
+							<div class="match-waiting-players" id="waiting-team-b"></div>
+						</div>
+					</div>
+					<div class="match-waiting-footer">
+						<p class="match-flow-text">Вы подключены к лобби. Ждём, пока лидер соберёт команду и нажмёт «Старт».</p>
+						<div class="match-flow-actions" id="waiting-action-buttons"></div>
+					</div>
+				</div>
+
+				<div class="card match-lobbies-card">
+					<div class="match-lobby-panel__header">
+						<div>
+							<h2 class="match-lobby-panel__title">Открытые лобби</h2>
+							<p class="match-lobby-panel__subtitle">Список обновляется вручную и после каждого действия</p>
+						</div>
+					</div>
+					<div id="lobby-list" class="match-lobby-list"></div>
+				</div>
 			</section>
 
 			<section id="leaderboard" class="page" role="tabpanel" aria-label="Лидеры" hidden>
 				<h1 class="page__title">Лучшие игроки</h1>
 				<p class="page__text" style="color: var(--color-text-secondary); margin-bottom: 24px;">Топ игроков по ELO рейтингу в мире</p>
 				<div class="leaderboard-container">
-					<div class="leaderboard-header">
-						<div class="lead-col lead-col-rank">МЕСТО</div>
-						<div class="lead-col lead-col-elo">ELO</div>
-					</div>
+
 					<div class="leaderboard-list" id="leaderboard-list">
 						<!-- Лидеры будут добавлены через JS -->
 					</div>
@@ -294,6 +408,7 @@
 				<h2 class="modal__title">Регистрация</h2>
 				<form id="register-form" class="auth-form">
 					<input type="text" id="register-username" placeholder="Никнейм" required />
+					<input type="text" id="register-standoff2-id" placeholder="Standoff 2 ID" required />
 					<input type="password" id="register-password" placeholder="Пароль" required />
 					<input type="password" id="register-confirm" placeholder="Подтвердить пароль" required />
 					<button type="submit" class="glow-btn">Зарегистрироваться</button>

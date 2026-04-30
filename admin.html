@@ -199,6 +199,17 @@
                     <span>Цвет (hex)</span>
                     <input id="achievement-color" type="text" placeholder="#FF5500" />
                   </label>
+                  <input id="achievement-id" type="hidden" />
+                  <div class="input-group">
+                    <span>Предпросмотр</span>
+                    <div id="achievement-preview" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.02);">
+                      <div id="achievement-preview-icon" style="width:56px;height:56px;border-radius:10px;display:grid;place-items:center;background:#111;border:2px solid rgba(255,255,255,0.06);overflow:hidden;"></div>
+                      <div style="flex:1; text-align:left;">
+                        <div id="achievement-preview-name" style="font-weight:800;color:var(--text);">Название</div>
+                        <div id="achievement-preview-meta" style="font-size:12px;color:var(--muted);">Редкость • Цвет</div>
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-actions">
                     <button type="submit" class="glow-btn">Сохранить достижение</button>
                     <button type="button" id="achievement-clear" class="glow-btn glow-btn--outline">Очистить</button>
